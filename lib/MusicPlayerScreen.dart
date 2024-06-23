@@ -33,49 +33,8 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen>
 [Intro]
 ABC 도레미만큼 착했던 나
 그 눈빛이 싹 변했지 어쩌면 이 또한 나니까
-
-[Verse 1]
-난 파란 나비처럼 날아가
-잡지 못한 건 다 네 몫이니까
-활짝 꽃피웠던 시간도 이제 모두
-내겐 Lie, lie, lie
-
-[Chorus]
-붉게 타버려진 너와 나
-난 괜찮아 넌 괜찮을까
-구름 한 점 없이 예쁜 날
-꽃향기만 남기고 갔단다
-꽃향기만 남기고 갔단다
-
-[Post-Chorus]
-You and me 미칠 듯이 뜨거웠지만
-처참하게 짓밟혀진 내 하나뿐인 라일락
-
-[Verse 2]
-난 하얀 꽃잎처럼 날아가
-잡지 않은 것은 너니까
-살랑살랑 부는 바람에 이끌려
-봄은 오지만 우린 Bye, bye, bye
-
-[Chorus]
-붉게 타버려진 너와 나
-난 괜찮아 넌 괜찮을까
-구름 한 점 없이 예쁜 날
-꽃향기만 남기고 갔단다
-꽃향기만 남기고 갔단다
-
-[Bridge]
-이젠 안녕 Goodbye
-뒤는 절대 안 봐
-미련이란 이름의 잎새 하나
-봄비에 너에게서 떨어져
-꽃향기만 남아
-
-[Outro]
-꽃향기만 남기고 갔단다
 ''',
-      'isCurrentPlaying':
-          false, // Thêm thuộc tính này để theo dõi trạng thái phát
+      'isCurrentPlaying': false,
     },
     {
       'title': 'BLACKPINK - DDU-DU DDU-DU',
@@ -97,6 +56,7 @@ You and me 미칠 듯이 뜨거웠지만
       'isCurrentPlaying': false,
     },
   ];
+
   @override
   void initState() {
     super.initState();
@@ -133,7 +93,6 @@ You and me 미칠 듯이 뜨거웠지만
       } else {
         await _audioPlayer.setUrl(_songs[index]['url']!);
       }
-
       _audioPlayer.play();
       setState(() {
         _currentIndex = index;
@@ -160,6 +119,16 @@ You and me 미칠 듯이 뜨거웠지만
         _controller.stop();
       }
     });
+  }
+
+  void _nextSong() {
+    final nextIndex = (_currentIndex + 1) % _songs.length;
+    _playPauseSong(nextIndex);
+  }
+
+  void _previousSong() {
+    final previousIndex = (_currentIndex - 1 + _songs.length) % _songs.length;
+    _playPauseSong(previousIndex);
   }
 
   void _setVolume(double value) {
@@ -200,12 +169,12 @@ You and me 미칠 듯이 뜨거웠지만
             ),
           ],
         ),
-        backgroundColor: Colors.black87, // Đổi màu nền của AppBar
+        backgroundColor: Colors.black87,
         elevation: 0,
         centerTitle: false,
       ),
       body: Container(
-        color: Colors.black54, // Thay đổi màu nền chính
+        color: Colors.black54,
         child: Column(
           children: [
             Expanded(
@@ -236,7 +205,7 @@ You and me 미칠 듯이 뜨거웠지만
                       tween: ColorTween(
                         begin: Colors.white,
                         end: _songs[index]['isCurrentPlaying']
-                            ? Colors.blue.withOpacity(0.3)
+                            ? Colors.pink.withOpacity(0.9)
                             : Colors.white,
                       ),
                       duration: Duration(milliseconds: 500),
@@ -245,9 +214,7 @@ You and me 미칠 듯이 뜨거웠지만
                         return Container(
                           margin: const EdgeInsets.all(8.0),
                           decoration: BoxDecoration(
-                            color: _songs[index]['isCurrentPlaying']
-                                ? Colors.blue.withOpacity(0.3)
-                                : Colors.white,
+                            color: value,
                             borderRadius: BorderRadius.circular(12.0),
                             boxShadow: [
                               BoxShadow(
@@ -311,7 +278,7 @@ You and me 미칠 듯이 뜨거웠지만
                 }
 
                 return Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                  padding: const EdgeInsets.all(16.0),
                   child: Column(
                     children: [
                       ProgressBar(
@@ -319,6 +286,17 @@ You and me 미칠 듯이 뜨거웠지만
                         buffered:
                             positionData?.bufferedPosition ?? Duration.zero,
                         total: duration,
+                        baseBarColor: Colors.grey,
+                        progressBarColor: Colors.pinkAccent,
+                        bufferedBarColor: Colors.white70,
+                        thumbColor: Colors.pink,
+                        barHeight: 8.0,
+                        thumbRadius: 8.0,
+                        timeLabelTextStyle: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
                         onSeek: (duration) {
                           _audioPlayer.seek(duration);
                           setState(() {
@@ -330,7 +308,29 @@ You and me 미칠 듯이 뜨거웠지만
                       Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Icon(Icons.volume_down),
+                          IconButton(
+                            icon:
+                                Icon(Icons.skip_previous, color: Colors.white),
+                            onPressed: _previousSong,
+                          ),
+                          IconButton(
+                            icon: Icon(
+                              _isPlaying ? Icons.pause : Icons.play_arrow,
+                              color: Colors.white,
+                            ),
+                            onPressed: () => _playPauseSong(_currentIndex),
+                          ),
+                          IconButton(
+                            icon: Icon(Icons.skip_next, color: Colors.white),
+                            onPressed: _nextSong,
+                          ),
+                        ],
+                      ),
+                      SizedBox(height: 16.0),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.volume_down, color: Colors.white),
                           SizedBox(width: 8.0),
                           Expanded(
                             child: Slider(
@@ -338,12 +338,12 @@ You and me 미칠 듯이 뜨거웠지만
                               min: 0.0,
                               max: 1.0,
                               onChanged: _setVolume,
-                              activeColor: Theme.of(context).primaryColor,
+                              activeColor: Colors.pinkAccent,
                               inactiveColor: Colors.grey.shade400,
                             ),
                           ),
                           SizedBox(width: 8.0),
-                          Icon(Icons.volume_up),
+                          Icon(Icons.volume_up, color: Colors.white),
                         ],
                       ),
                     ],
