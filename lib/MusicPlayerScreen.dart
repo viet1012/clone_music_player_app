@@ -87,12 +87,48 @@ ABC 도레미만큼 착했던 나
   }
 
   void _playPauseSong(int index) async {
-    if (_currentIndex != index || !_isPlaying) {
+    // if (_currentIndex != index || !_isPlaying) {
+    //   if (_songs[index]['url']!.startsWith('assets')) {
+    //     await _audioPlayer.setAsset(_songs[index]['url']!);
+    //   } else {
+    //     await _audioPlayer.setUrl(_songs[index]['url']!);
+    //   }
+    //   _audioPlayer.play();
+    //   setState(() {
+    //     _currentIndex = index;
+    //     _isPlaying = true;
+    //     _songs.forEach((song) => song['isCurrentPlaying'] = false);
+    //     _songs[index]['isCurrentPlaying'] = true;
+    //   });
+    //   _controller.repeat();
+    // } else {
+    //   _audioPlayer.pause();
+    //   setState(() {
+    //     _isPlaying = false;
+    //     _songs[index]['isCurrentPlaying'] = false;
+    //   });
+    //   _controller.stop();
+    // }
+
+    final isCurrentlyPlaying =
+        _audioPlayer.playing; // Lấy trạng thái hiện tại của bài hát
+
+    if (!isCurrentlyPlaying || _currentIndex != index) {
+      // Nếu bài hát không được phát hoặc đang phát là bài khác
       if (_songs[index]['url']!.startsWith('assets')) {
         await _audioPlayer.setAsset(_songs[index]['url']!);
       } else {
         await _audioPlayer.setUrl(_songs[index]['url']!);
       }
+
+      // Lấy vị trí hiện tại của bài hát
+      final currentPosition = await _audioPlayer.position;
+
+      // Bắt đầu phát từ vị trí hiện tại nếu có
+      if (currentPosition != null) {
+        await _audioPlayer.seek(currentPosition);
+      }
+
       _audioPlayer.play();
       setState(() {
         _currentIndex = index;
@@ -102,6 +138,7 @@ ABC 도레미만큼 착했던 나
       });
       _controller.repeat();
     } else {
+      // Nếu bài hát đang được phát và bấm lại vào nút play
       _audioPlayer.pause();
       setState(() {
         _isPlaying = false;
@@ -110,11 +147,32 @@ ABC 도레미만큼 착했던 나
       _controller.stop();
     }
 
+    // _audioPlayer.playerStateStream.listen((state) {
+    //   if (state.processingState == ProcessingState.completed) {
+    //     setState(() {
+    //       _isPlaying = false;
+    //       _songs[index]['isCurrentPlaying'] = false;
+    //     });
+    //     _controller.value = 0.0; // Reset controller value
+    //     _controller.stop();
+    //     _audioPlayer.seek(Duration.zero); // Reset audio position to start
+    //   }
+    // });
     _audioPlayer.playerStateStream.listen((state) {
+      setState(() {
+        _isPlaying = state.playing;
+        if (_isPlaying) {
+          _controller.repeat();
+        } else {
+          _controller.stop();
+        }
+      });
+
       if (state.processingState == ProcessingState.completed) {
+        _audioPlayer.pause(); // Dừng phát nhạc khi bài hát kết thúc
         setState(() {
-          _isPlaying = false;
-          _songs[index]['isCurrentPlaying'] = false;
+          _songs[_currentIndex]['isCurrentPlaying'] = false;
+          _controller.value = 0.0; // Reset controller value
         });
         _controller.stop();
       }
@@ -237,7 +295,7 @@ ABC 도레미만큼 착했던 나
                                     placeholder: (context, url) =>
                                         CircularProgressIndicator(),
                                     errorWidget: (context, url, error) =>
-                                        Icon(Icons.error),
+                                        const Icon(Icons.error),
                                     fit: BoxFit.cover,
                                   ),
                                 ),
@@ -272,9 +330,11 @@ ABC 도레미만큼 착했던 나
                 final duration = positionData?.duration ?? Duration.zero;
                 final position = positionData?.position ?? Duration.zero;
 
-                if (positionData != null) {
-                  _controller.value =
-                      positionData.position.inSeconds.toDouble();
+                double progressInSeconds = position.inSeconds.toDouble();
+                double totalInSeconds = duration.inSeconds.toDouble();
+
+                if (progressInSeconds > totalInSeconds) {
+                  progressInSeconds = totalInSeconds;
                 }
 
                 return Padding(
@@ -282,10 +342,12 @@ ABC 도레미만큼 착했던 나
                   child: Column(
                     children: [
                       ProgressBar(
-                        progress: position,
+                        progress: Duration(
+                            seconds: progressInSeconds
+                                .toInt()), // Thời gian hiện tại của bài hát, được giới hạn không vượt quá tổng thời gian
                         buffered:
                             positionData?.bufferedPosition ?? Duration.zero,
-                        total: duration,
+                        total: duration, // Tổng thời gian của bài hát
                         baseBarColor: Colors.grey,
                         progressBarColor: Colors.pinkAccent,
                         bufferedBarColor: Colors.white70,
@@ -304,7 +366,7 @@ ABC 도레미만큼 착했던 나
                           });
                         },
                       ),
-                      SizedBox(height: 16.0),
+                      const SizedBox(height: 16.0),
                       Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
@@ -321,17 +383,18 @@ ABC 도레미만큼 착했던 나
                             onPressed: () => _playPauseSong(_currentIndex),
                           ),
                           IconButton(
-                            icon: Icon(Icons.skip_next, color: Colors.white),
+                            icon: const Icon(Icons.skip_next,
+                                color: Colors.white),
                             onPressed: _nextSong,
                           ),
                         ],
                       ),
-                      SizedBox(height: 16.0),
+                      const SizedBox(height: 16.0),
                       Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Icon(Icons.volume_down, color: Colors.white),
-                          SizedBox(width: 8.0),
+                          const Icon(Icons.volume_down, color: Colors.white),
+                          const SizedBox(width: 8.0),
                           Expanded(
                             child: Slider(
                               value: _volume,
@@ -342,8 +405,8 @@ ABC 도레미만큼 착했던 나
                               inactiveColor: Colors.grey.shade400,
                             ),
                           ),
-                          SizedBox(width: 8.0),
-                          Icon(Icons.volume_up, color: Colors.white),
+                          const SizedBox(width: 8.0),
+                          const Icon(Icons.volume_up, color: Colors.white),
                         ],
                       ),
                     ],
