@@ -17,19 +17,18 @@ class SongDetailScreen extends StatefulWidget {
   final VoidCallback playPauseSong;
   final String lyrics;
   final bool isDetail;
-  // final bool isCurrentPlaying;
+
   const SongDetailScreen({
     required this.title,
+    required this.author,
     required this.imageUrl,
     required this.audioPlayer,
     required this.isPlaying,
     required this.currentIndex,
     required this.controller,
     required this.playPauseSong,
-    required this.author,
     required this.lyrics,
     this.isDetail = false,
-    // required this.isCurrentPlaying,
   });
 
   @override
@@ -41,12 +40,14 @@ class _SongDetailScreenState extends State<SongDetailScreen>
   late AnimationController _rotationController;
   late AnimationController _lyricsAnimationController;
   late bool _isPlaying;
+  late bool _isCompleted; // Track if the song has completed
   late Duration _currentPosition;
 
   @override
   void initState() {
     super.initState();
     _isPlaying = widget.isPlaying;
+    _isCompleted = false; // Initially, the song is not completed
     _currentPosition = Duration.zero;
     _rotationController = AnimationController(
       vsync: this,
@@ -58,10 +59,27 @@ class _SongDetailScreenState extends State<SongDetailScreen>
       duration: const Duration(milliseconds: 1000),
     );
 
-    if (_isPlaying && widget.currentIndex == 0) {
+    if (_isPlaying) {
       _rotationController.repeat();
       _startLyricsAnimation();
     }
+
+    widget.audioPlayer.positionStream.listen((position) {
+      setState(() {
+        _currentPosition = position;
+      });
+    });
+
+    widget.audioPlayer.processingStateStream.listen((state) {
+      if (state == ProcessingState.completed) {
+        setState(() {
+          _isPlaying = false;
+          _isCompleted = true; // Mark the song as completed
+        });
+        _rotationController.stop();
+        _lyricsAnimationController.stop();
+      }
+    });
   }
 
   @override
@@ -71,8 +89,9 @@ class _SongDetailScreenState extends State<SongDetailScreen>
         widget.currentIndex != oldWidget.currentIndex) {
       setState(() {
         _isPlaying = widget.isPlaying;
+        _isCompleted = false; // Reset completion state when changing songs
       });
-      if (_isPlaying && widget.currentIndex == 0) {
+      if (_isPlaying) {
         _rotationController.repeat();
         _startLyricsAnimation();
       } else {
@@ -90,20 +109,19 @@ class _SongDetailScreenState extends State<SongDetailScreen>
   }
 
   void _handlePlayPause() async {
-    if (_isPlaying) {
-      _currentPosition = await widget.audioPlayer.position;
-      await widget.audioPlayer.pause();
-      _rotationController.stop();
-      _lyricsAnimationController.stop();
-    } else {
-      await widget.audioPlayer.seek(_currentPosition);
-      await widget.audioPlayer.play();
-      _rotationController.repeat();
-      _lyricsAnimationController.forward();
-    }
     setState(() {
       _isPlaying = !_isPlaying;
     });
+
+    if (_isPlaying) {
+      await widget.audioPlayer.play();
+      _rotationController.repeat();
+      _startLyricsAnimation();
+    } else {
+      await widget.audioPlayer.pause();
+      _rotationController.stop();
+      _lyricsAnimationController.stop();
+    }
   }
 
   void _startLyricsAnimation() {
@@ -126,7 +144,7 @@ class _SongDetailScreenState extends State<SongDetailScreen>
         ),
         title: Text(
           widget.author,
-          style: TextStyle(
+          style: const TextStyle(
             fontSize: 18.0,
             fontWeight: FontWeight.bold,
           ),
@@ -134,7 +152,7 @@ class _SongDetailScreenState extends State<SongDetailScreen>
         centerTitle: true,
       ),
       body: Container(
-        padding: EdgeInsets.all(18),
+        padding: const EdgeInsets.all(18),
         decoration: BoxDecoration(
           gradient: LinearGradient(
             colors: [Colors.blue.shade200, Colors.purple.shade200],
@@ -166,7 +184,7 @@ class _SongDetailScreenState extends State<SongDetailScreen>
             const SizedBox(height: 16.0),
             Text(
               widget.title,
-              style: TextStyle(
+              style: const TextStyle(
                 fontSize: 24.0,
                 fontWeight: FontWeight.bold,
                 color: Colors.white,
@@ -192,10 +210,15 @@ class _SongDetailScreenState extends State<SongDetailScreen>
                 final positionData = snapshot.data;
                 final duration = positionData?.duration ?? Duration.zero;
                 final position = positionData?.position ?? Duration.zero;
+
+                // Determine the current position based on play state and completion
+                Duration currentPosition =
+                    _isCompleted ? _currentPosition : position;
+
                 return Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16.0),
                   child: ProgressBar(
-                    progress: position,
+                    progress: currentPosition,
                     buffered: positionData?.bufferedPosition ?? Duration.zero,
                     total: duration,
                     onSeek: widget.audioPlayer.seek,
