@@ -70,21 +70,23 @@ ABC 도레미만큼 착했던 나
     super.dispose();
   }
 
-  void _initAudioPlayer() {
-    _audioPlayer.playerStateStream.listen((state) {
-      setState(() {
-        _isPlaying = state.playing;
-        if (_isPlaying) {
-          _controller.repeat();
-        } else {
-          _controller.stop();
-        }
-      });
+  void _initAudioPlayer() async {
+    _audioPlayer.playerStateStream.listen(
+      (state) {
+        setState(() {
+          _isPlaying = state.playing;
+          if (_isPlaying) {
+            _controller.repeat();
+          } else {
+            _controller.stop();
+          }
+        });
 
-      if (state.processingState == ProcessingState.completed) {
-        _nextSong(); // Auto play next song when current song completes
-      }
-    });
+        if (state.processingState == ProcessingState.completed) {
+          _nextSong(); // Auto play next song when current song completes
+        }
+      },
+    );
 
     _controller = AnimationController(
       vsync: this,
@@ -92,6 +94,8 @@ ABC 도레미만큼 착했던 나
     );
 
     _audioPlayer.setVolume(_volume);
+    // Wait for AudioPlayer to be ready
+    await _audioPlayer.setAsset(_songs[_currentIndex]['url']!);
   }
 
   void _playPauseSong(int index) async {
