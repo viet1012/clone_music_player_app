@@ -8,7 +8,7 @@ import 'PositionData.dart';
 import 'SongDetailScreen.dart';
 
 class MusicPlayerScreen extends StatefulWidget {
-  const MusicPlayerScreen({super.key});
+  const MusicPlayerScreen({Key? key}) : super(key: key);
 
   @override
   State<MusicPlayerScreen> createState() => _MusicPlayerScreenState();
@@ -60,23 +60,7 @@ ABC 도레미만큼 착했던 나
   @override
   void initState() {
     super.initState();
-    _audioPlayer.playerStateStream.listen((state) {
-      setState(() {
-        _isPlaying = state.playing;
-        if (_isPlaying) {
-          _controller.repeat();
-        } else {
-          _controller.stop();
-        }
-      });
-    });
-
-    _controller = AnimationController(
-      vsync: this,
-      duration: Duration(seconds: 1),
-    );
-
-    _audioPlayer.setVolume(_volume);
+    _initAudioPlayer();
   }
 
   @override
@@ -86,78 +70,7 @@ ABC 도레미만큼 착했던 나
     super.dispose();
   }
 
-  void _playPauseSong(int index) async {
-    // if (_currentIndex != index || !_isPlaying) {
-    //   if (_songs[index]['url']!.startsWith('assets')) {
-    //     await _audioPlayer.setAsset(_songs[index]['url']!);
-    //   } else {
-    //     await _audioPlayer.setUrl(_songs[index]['url']!);
-    //   }
-    //   _audioPlayer.play();
-    //   setState(() {
-    //     _currentIndex = index;
-    //     _isPlaying = true;
-    //     _songs.forEach((song) => song['isCurrentPlaying'] = false);
-    //     _songs[index]['isCurrentPlaying'] = true;
-    //   });
-    //   _controller.repeat();
-    // } else {
-    //   _audioPlayer.pause();
-    //   setState(() {
-    //     _isPlaying = false;
-    //     _songs[index]['isCurrentPlaying'] = false;
-    //   });
-    //   _controller.stop();
-    // }
-
-    final isCurrentlyPlaying =
-        _audioPlayer.playing; // Lấy trạng thái hiện tại của bài hát
-
-    if (!isCurrentlyPlaying || _currentIndex != index) {
-      // Nếu bài hát không được phát hoặc đang phát là bài khác
-      if (_songs[index]['url']!.startsWith('assets')) {
-        await _audioPlayer.setAsset(_songs[index]['url']!);
-      } else {
-        await _audioPlayer.setUrl(_songs[index]['url']!);
-      }
-
-      // Lấy vị trí hiện tại của bài hát
-      final currentPosition = await _audioPlayer.position;
-
-      // Bắt đầu phát từ vị trí hiện tại nếu có
-      if (currentPosition != null) {
-        await _audioPlayer.seek(currentPosition);
-      }
-
-      _audioPlayer.play();
-      setState(() {
-        _currentIndex = index;
-        _isPlaying = true;
-        _songs.forEach((song) => song['isCurrentPlaying'] = false);
-        _songs[index]['isCurrentPlaying'] = true;
-      });
-      _controller.repeat();
-    } else {
-      // Nếu bài hát đang được phát và bấm lại vào nút play
-      _audioPlayer.pause();
-      setState(() {
-        _isPlaying = false;
-        _songs[index]['isCurrentPlaying'] = false;
-      });
-      _controller.stop();
-    }
-
-    // _audioPlayer.playerStateStream.listen((state) {
-    //   if (state.processingState == ProcessingState.completed) {
-    //     setState(() {
-    //       _isPlaying = false;
-    //       _songs[index]['isCurrentPlaying'] = false;
-    //     });
-    //     _controller.value = 0.0; // Reset controller value
-    //     _controller.stop();
-    //     _audioPlayer.seek(Duration.zero); // Reset audio position to start
-    //   }
-    // });
+  void _initAudioPlayer() {
     _audioPlayer.playerStateStream.listen((state) {
       setState(() {
         _isPlaying = state.playing;
@@ -169,14 +82,46 @@ ABC 도레미만큼 착했던 나
       });
 
       if (state.processingState == ProcessingState.completed) {
-        _audioPlayer.pause(); // Dừng phát nhạc khi bài hát kết thúc
-        setState(() {
-          _songs[_currentIndex]['isCurrentPlaying'] = false;
-          _controller.value = 0.0; // Reset controller value
-        });
-        _controller.stop();
+        _nextSong(); // Auto play next song when current song completes
       }
     });
+
+    _controller = AnimationController(
+      vsync: this,
+      duration: Duration(seconds: 1),
+    );
+
+    _audioPlayer.setVolume(_volume);
+  }
+
+  void _playPauseSong(int index) async {
+    final isCurrentlyPlaying = _audioPlayer.playing;
+
+    if (_currentIndex != index) {
+      if (_songs[index]['url']!.startsWith('assets')) {
+        await _audioPlayer.setAsset(_songs[index]['url']!);
+      } else {
+        await _audioPlayer.setUrl(_songs[index]['url']!);
+      }
+      _currentIndex = index;
+    }
+
+    if (isCurrentlyPlaying) {
+      _audioPlayer.pause();
+      setState(() {
+        _isPlaying = false;
+        _songs[index]['isCurrentPlaying'] = false;
+      });
+      _controller.stop();
+    } else {
+      _audioPlayer.play();
+      setState(() {
+        _isPlaying = true;
+        _songs.forEach((song) => song['isCurrentPlaying'] = false);
+        _songs[index]['isCurrentPlaying'] = true;
+      });
+      _controller.repeat();
+    }
   }
 
   void _nextSong() {
@@ -232,7 +177,14 @@ ABC 도레미만큼 착했던 나
         centerTitle: false,
       ),
       body: Container(
-        color: Colors.black54,
+        // color: Colors.black54,
+        decoration: const BoxDecoration(
+          image: DecorationImage(
+            image: AssetImage("assets/images/V.jpg"),
+            fit: BoxFit.cover,
+            opacity: 0.8,
+          ),
+        ),
         child: Column(
           children: [
             Expanded(
@@ -343,11 +295,11 @@ ABC 도레미만큼 착했던 나
                     children: [
                       ProgressBar(
                         progress: Duration(
-                            seconds: progressInSeconds
-                                .toInt()), // Thời gian hiện tại của bài hát, được giới hạn không vượt quá tổng thời gian
+                          seconds: progressInSeconds.toInt(),
+                        ),
                         buffered:
                             positionData?.bufferedPosition ?? Duration.zero,
-                        total: duration, // Tổng thời gian của bài hát
+                        total: duration,
                         baseBarColor: Colors.grey,
                         progressBarColor: Colors.pinkAccent,
                         bufferedBarColor: Colors.white70,
@@ -359,8 +311,9 @@ ABC 도레미만큼 착했던 나
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
                         ),
-                        onSeek: (duration) {
-                          _audioPlayer.seek(duration);
+                        onSeek: (duration) async {
+                          await _audioPlayer.seek(duration,
+                              index: _currentIndex);
                           setState(() {
                             _controller.value = duration.inSeconds.toDouble();
                           });
