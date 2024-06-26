@@ -1,4 +1,3 @@
-import 'package:audio_service/audio_service.dart';
 import 'package:flutter/material.dart';
 
 import 'MusicPlayerScreen.dart';
@@ -14,7 +13,7 @@ class MyApp extends StatelessWidget {
       theme: ThemeData(
         primarySwatch: Colors.blue,
       ),
-      home: AudioServiceWidget(child: const MusicPlayerScreen()),
+      home: MusicPlayerScreen(),
     );
   }
 }
