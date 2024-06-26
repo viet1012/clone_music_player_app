@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:audio_video_progress_bar/audio_video_progress_bar.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
@@ -17,6 +19,8 @@ class SongDetailScreen extends StatefulWidget {
   final VoidCallback playPauseSong;
   final String lyrics;
   final bool isDetail;
+  final Function onNextSong; // Callback to notify when song ends
+  final bool shouldCloseOnComplete;
 
   const SongDetailScreen({
     required this.title,
@@ -28,7 +32,9 @@ class SongDetailScreen extends StatefulWidget {
     required this.controller,
     required this.playPauseSong,
     required this.lyrics,
+    required this.onNextSong,
     this.isDetail = false,
+    this.shouldCloseOnComplete = false,
   });
 
   @override
@@ -42,13 +48,24 @@ class _SongDetailScreenState extends State<SongDetailScreen>
   late bool _isPlaying;
   late bool _isCompleted; // Track if the song has completed
   late Duration _currentPosition;
+  late Duration _songDuration; // Track the duration of the song
+  late StreamSubscription<Duration> _positionSubscription;
+  late AudioPlayer _audioPlayer;
 
   @override
   void initState() {
     super.initState();
+    _audioPlayer = widget.audioPlayer;
     _isPlaying = widget.isPlaying;
-    _isCompleted = false; // Initially, the song is not completed
+    _isCompleted = false;
     _currentPosition = Duration.zero;
+    _songDuration = Duration.zero;
+    _positionSubscription =
+        widget.audioPlayer.positionStream.listen((position) {
+      setState(() {
+        _currentPosition = position;
+      });
+    });
     _rotationController = AnimationController(
       vsync: this,
       duration: const Duration(seconds: 10),
@@ -70,14 +87,26 @@ class _SongDetailScreenState extends State<SongDetailScreen>
       });
     });
 
+    widget.audioPlayer.durationStream.listen((duration) {
+      setState(() {
+        _songDuration = duration ?? Duration.zero;
+      });
+    });
+
     widget.audioPlayer.processingStateStream.listen((state) {
       if (state == ProcessingState.completed) {
         setState(() {
           _isPlaying = false;
-          _isCompleted = true; // Mark the song as completed
+          _isCompleted = true;
+          _currentPosition = _songDuration;
         });
         _rotationController.stop();
         _lyricsAnimationController.stop();
+        if (widget.shouldCloseOnComplete) {
+          Navigator.of(context).pop();
+        } else {
+          widget.onNextSong();
+        }
       }
     });
   }
@@ -89,14 +118,17 @@ class _SongDetailScreenState extends State<SongDetailScreen>
         widget.currentIndex != oldWidget.currentIndex) {
       setState(() {
         _isPlaying = widget.isPlaying;
-        _isCompleted = false; // Reset completion state when changing songs
+        _isCompleted = false;
       });
       if (_isPlaying) {
-        _rotationController.repeat();
+        if (!_rotationController.isAnimating) {
+          _rotationController.repeat();
+        }
         _startLyricsAnimation();
       } else {
-        _rotationController.stop();
-        _lyricsAnimationController.reset();
+        _rotationController
+            .stop(); // Không huỷ để có thể tiếp tục từ vị trí hiện tại
+        _lyricsAnimationController.stop();
       }
     }
   }
@@ -105,23 +137,28 @@ class _SongDetailScreenState extends State<SongDetailScreen>
   void dispose() {
     _rotationController.dispose();
     _lyricsAnimationController.dispose();
+    _positionSubscription.cancel();
     super.dispose();
   }
 
   void _handlePlayPause() async {
-    setState(() {
-      _isPlaying = !_isPlaying;
-    });
+    bool newIsPlaying = !_isPlaying; // Lấy trạng thái mới của isPlaying
 
-    if (_isPlaying) {
+    if (newIsPlaying) {
       await widget.audioPlayer.play();
-      _rotationController.repeat();
+      if (!_rotationController.isAnimating) {
+        _rotationController.repeat();
+      }
       _startLyricsAnimation();
     } else {
       await widget.audioPlayer.pause();
-      _rotationController.stop();
+      _rotationController.stop(); // Chỉ cần stop, không cần đặt canceled: false
       _lyricsAnimationController.stop();
     }
+
+    setState(() {
+      _isPlaying = newIsPlaying; // Cập nhật trạng thái của isPlaying
+    });
   }
 
   void _startLyricsAnimation() {
@@ -131,31 +168,38 @@ class _SongDetailScreenState extends State<SongDetailScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.black87, // Màu nền đen
       appBar: AppBar(
-        flexibleSpace: Container(
-          height: MediaQuery.of(context).size.width * (9 / 16),
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [Colors.pink, Colors.orange],
-            ),
-          ),
-        ),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
         title: Text(
           widget.author,
-          style: const TextStyle(
-            fontSize: 18.0,
+          style: TextStyle(
+            fontSize: 20.0,
             fontWeight: FontWeight.bold,
+            color: Colors.white, // Màu chữ trắng
           ),
         ),
         centerTitle: true,
+        actions: [
+          IconButton(
+            icon: Icon(Icons.favorite_border),
+            onPressed: () {},
+            color: Colors.white, // Màu icon trắng
+          ),
+          IconButton(
+            icon: Icon(Icons.more_vert),
+            onPressed: () {},
+            color: Colors.white, // Màu icon trắng
+          ),
+        ],
+        iconTheme: const IconThemeData(color: Colors.white),
       ),
       body: Container(
-        padding: const EdgeInsets.all(18),
-        decoration: BoxDecoration(
+        padding: const EdgeInsets.all(16),
+        decoration: const BoxDecoration(
           gradient: LinearGradient(
-            colors: [Colors.blue.shade200, Colors.purple.shade200],
+            colors: [Colors.black, Color(0xFF1DB954)],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
@@ -164,30 +208,43 @@ class _SongDetailScreenState extends State<SongDetailScreen>
           mainAxisAlignment: MainAxisAlignment.center,
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            SizedBox(
-              width: 200.0,
-              height: 200.0,
-              child: ClipOval(
-                child: RotationTransition(
-                  turns: _rotationController,
-                  child: CachedNetworkImage(
-                    imageUrl: widget.imageUrl,
-                    placeholder: (context, url) =>
-                        const CircularProgressIndicator(),
-                    errorWidget: (context, url, error) =>
-                        const Icon(Icons.error),
-                    fit: BoxFit.cover,
+            Stack(
+              alignment: Alignment.center,
+              children: [
+                SizedBox(
+                  width: 200.0,
+                  height: 200.0,
+                  child: ClipOval(
+                    child: RotationTransition(
+                      turns: _rotationController,
+                      child: CachedNetworkImage(
+                        imageUrl: widget.imageUrl,
+                        placeholder: (context, url) =>
+                            const CircularProgressIndicator(),
+                        errorWidget: (context, url, error) =>
+                            const Icon(Icons.error),
+                        fit: BoxFit.cover,
+                      ),
+                    ),
                   ),
                 ),
-              ),
+                GestureDetector(
+                  onTap: _handlePlayPause,
+                  child: Icon(
+                    _isPlaying ? Icons.pause : Icons.play_arrow,
+                    size: 64.0,
+                    color: Colors.white.withOpacity(0.8), // Màu icon trắng
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: 16.0),
+            SizedBox(height: 16.0),
             Text(
               widget.title,
               style: const TextStyle(
                 fontSize: 24.0,
                 fontWeight: FontWeight.bold,
-                color: Colors.white,
+                color: Colors.white, // Màu chữ trắng
                 shadows: [
                   Shadow(
                     offset: Offset(2.0, 2.0),
@@ -197,7 +254,7 @@ class _SongDetailScreenState extends State<SongDetailScreen>
                 ],
               ),
             ),
-            const SizedBox(height: 16.0),
+            SizedBox(height: 16.0),
             StreamBuilder<PositionData>(
               stream: Rx.combineLatest3(
                 widget.audioPlayer.positionStream,
@@ -211,9 +268,8 @@ class _SongDetailScreenState extends State<SongDetailScreen>
                 final duration = positionData?.duration ?? Duration.zero;
                 final position = positionData?.position ?? Duration.zero;
 
-                // Determine the current position based on play state and completion
                 Duration currentPosition =
-                    _isCompleted ? _currentPosition : position;
+                    _isCompleted ? _songDuration : position;
 
                 return Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16.0),
@@ -225,23 +281,17 @@ class _SongDetailScreenState extends State<SongDetailScreen>
                     progressBarColor: Colors.white,
                     baseBarColor: Colors.white.withOpacity(0.24),
                     bufferedBarColor: Colors.white.withOpacity(0.24),
-                    thumbColor: Colors.white,
                     barHeight: 5.0,
+                    thumbColor: Colors.white,
                     thumbRadius: 7.0,
+                    timeLabelTextStyle: TextStyle(
+                      color: Colors.white, // Màu chữ trắng
+                    ),
                   ),
                 );
               },
             ),
-            const SizedBox(height: 24.0),
-            IconButton(
-              onPressed: _handlePlayPause,
-              icon: Icon(
-                _isPlaying ? Icons.pause : Icons.play_arrow,
-                size: 48.0,
-                color: Colors.white,
-              ),
-            ),
-            const SizedBox(height: 6.0),
+            SizedBox(height: 24.0),
             Expanded(
               child: SingleChildScrollView(
                 padding: const EdgeInsets.all(16.0),
@@ -256,9 +306,9 @@ class _SongDetailScreenState extends State<SongDetailScreen>
                       ),
                       child: Text(
                         widget.lyrics,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 16.0,
-                          color: Colors.white,
+                          color: Colors.white, // Màu chữ trắng
                         ),
                       ),
                     );
