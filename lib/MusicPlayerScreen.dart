@@ -5,6 +5,7 @@ import 'package:just_audio/just_audio.dart';
 import 'package:rxdart/rxdart.dart';
 
 import 'PositionData.dart';
+import 'ScrollingText.dart';
 import 'Song.dart'; // Import Song and SongData
 import 'SongDetailScreen.dart';
 
@@ -22,7 +23,6 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen>
   int _currentIndex = 0;
   double _volume = 0.5;
   late AnimationController _controller;
-
   @override
   void initState() {
     _initAudioPlayer();
@@ -335,13 +335,16 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen>
                             ),
                           ),
                         ),
-                        title: Text(
-                          SongData.songs[index].title,
+                        title: ScrollingText(
+                          text: SongData.songs[index].title,
                           style: const TextStyle(
                             color: Colors.black,
                             fontSize: 20,
                             fontWeight: FontWeight.w500,
                           ),
+                          duration: Duration(
+                              seconds:
+                                  10), // Adjust the duration to control the scrolling speed
                         ),
                         subtitle: Text(
                           SongData.songs[index].author,
